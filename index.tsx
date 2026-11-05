@@ -16,70 +16,54 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { FluxDispatcher } from "@webpack/common";
-import { enableStyle, disableStyle } from "@api/Styles";
-import definePlugin from "@utils/types";
+import { ChatBarButton } from "@api/ChatButtons";
 import ErrorBoundary from "@components/ErrorBoundary";
 import { Devs } from "@utils/constants";
-import styles from "./styles.css?managed";
-import settings from "./settings";
-import { getListeners } from "./utils";
-import { LogIcon, IconWithTooltip } from "./components/Icons";
-import { updateLoggedSounds } from "./store";
+import definePlugin from "@utils/types";
+import { findComponentByCodeLazy } from "@webpack";
+
+import { LogIcon } from "./components/Icons";
 import { openSoundBoardLog } from "./components/SoundBoardLog";
+import settings from "./settings";
+import { updateLoggedSounds } from "./store";
+import styles from "./styles.css?managed";
+import { getListeners, SoundEvent } from "./utils";
+
+const HeaderBarIcon = findComponentByCodeLazy(".HEADER_BAR_BADGE_BOTTOM,", 'position:"bottom"');
 
 export default definePlugin({
     name: "SoundBoardLogger",
     authors: [
-        {
-            id: 712653921692155965n,
-            name: "Moxxie",
-        },
-        {
-            id: 843448897737064448n,
-            name: "Fres",
-        },
-        Devs.echo
+        { id: 843448897737064448n, name: "Fres" },
+        Devs.Moxxie
     ],
+    description: "Logs soundboard sounds played in a voice chat and allows you to download them",
     settings,
-    patches: [
-        {
-            predicate: () => settings.store.IconLocation === "chat",
-            find: "ChannelTextAreaButtons",
-            replacement: {
-                match: /(\i)\.push.{1,30}disabled:(\i),.{1,20}\},"gift"\)\)/,
-                replace: "$&,(()=>{try{$2||$1.push($self.chatBarIcon(arguments[0]))}catch{}})()",
-            }
-        },
-        {
-            predicate: () => settings.store.IconLocation === "toolbar",
-            find: ".iconBadge}):null",
-            replacement: {
-                match: /className:(\i).toolbar,children:(\i)/,
-                replace: "className:$1.toolbar,children:$self.toolbarPatch($2)"
-            }
+    managedStyle: styles,
+    patches: [{
+        predicate: () => settings.store.IconLocation === "toolbar",
+        find: '?"BACK_FORWARD_NAVIGATION":',
+        replacement: {
+            match: /(trailing:.{0,200}?\{children:\[)/,
+            replace: "$1$self.renderToolbarButton(),"
         }
-    ],
-    description: "Logs all soundboards that are played in a voice chat and allows you to download them",
-    start() {
-        enableStyle(styles);
-        FluxDispatcher.subscribe("VOICE_CHANNEL_EFFECT_SEND", async (sound) => {
-            if (!sound?.soundId) return;
+    }],
+    chatBarButton: {
+        icon: LogIcon,
+        render: ({ isMainChat }) => isMainChat && settings.store.IconLocation === "chat" ? (
+            <ChatBarButton tooltip="Open SoundBoard Log" onClick={openSoundBoardLog}>
+                <LogIcon />
+            </ChatBarButton>
+        ) : null
+    },
+    flux: {
+        async VOICE_CHANNEL_EFFECT_SEND(sound: SoundEvent) {
+            if (!sound.soundId) return;
             await updateLoggedSounds(sound);
             getListeners().forEach(cb => cb());
-        });
+        }
     },
-    stop() {
-        disableStyle(styles);
-    },
-    chatBarIcon: (slateProps: any) => (
-        <ErrorBoundary noop>
-            <IconWithTooltip text="Open SoundBoard Log" icon={<LogIcon className="chatBarLogIcon" />} onClick={openSoundBoardLog} />
-        </ErrorBoundary>
-    ),
-    toolbarPatch: (obj) => {
-        if (!obj?.props?.children) return obj;
-        obj.props.children = [<IconWithTooltip text="Open SoundBoard Log" icon={<LogIcon className="chatBarLogIcon" />} onClick={openSoundBoardLog} />, ...obj.props.children];
-        return obj;
-    }
+    renderToolbarButton: ErrorBoundary.wrap(() => (
+        <HeaderBarIcon key="vc-soundlog-toolbar" tooltip="Open SoundBoard Log" icon={LogIcon} onClick={openSoundBoardLog} />
+    ), { noop: true })
 });

@@ -16,22 +16,27 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { Button, Clickable, Forms, GuildStore, PermissionStore, PermissionsBits, Popout, SearchableSelect, Select, Text, TextInput, Toasts, UserStore, showToast, useMemo, useState } from "@webpack/common";
+import { Button } from "@components/Button";
+import ErrorBoundary from "@components/ErrorBoundary";
 import { Flex } from "@components/Flex";
-import { openModal, ModalRoot, closeModal, ModalContent, ModalHeader, ModalCloseButton } from "@utils/modal";
-import { Guild } from "discord-types/general";
+import { Heading } from "@components/Heading";
+import { Text } from "@components/Text";
+import { cl, getEmojiUrl, SoundEvent } from "@plugins/SoundBoardLogger/utils";
 import { Margins } from "@utils/margins";
-import { HtmlHTMLAttributes } from "react";
-import { SoundEvent, cl, getEmojiUrl } from "../utils";
-import { LazyComponent } from "@utils/react";
-import { find, findByPropsLazy } from "@webpack";
 import { classes } from "@utils/misc";
+import { Emoji, Guild } from "@vencord/discord-types";
+import { EmojiIntention } from "@vencord/discord-types/enums";
+import { findComponentByCodeLazy } from "@webpack";
+import { Clickable, closeModal, GuildChannelStore, GuildStore, Modal, openModal, PermissionsBits, PermissionStore, Popout, RestAPI, SearchableSelect, showToast, TextInput, useMemo, useRef, UserStore, useState } from "@webpack/common";
+import { HtmlHTMLAttributes } from "react";
 
 export function openCloneSoundModal(item) {
     const key = openModal(props =>
-        <ModalRoot {...props}>
-            <CloneSoundModal item={item} closeModal={() => closeModal(key)} />
-        </ModalRoot>
+        <Modal {...props} title="Clone Sound" size="lg">
+            <ErrorBoundary>
+                <CloneSoundModal item={item} closeModal={() => closeModal(key)} />
+            </ErrorBoundary>
+        </Modal>
     );
 }
 
@@ -55,9 +60,7 @@ function CustomInput({ children, className = "", ...props }: HtmlHTMLAttributes<
     </div>;
 }
 
-const EmojiPicker = LazyComponent(() => find(e => e.default?.type?.render?.toString?.().includes?.(".updateNewlyAddedLastSeen)")).default);
-
-const sounds = findByPropsLazy("uploadSound", "updateSound");
+const EmojiPicker = findComponentByCodeLazy("shouldHidePickerActions:", "onViewEmojiPacksChange:");
 
 export function CloneSoundModal({ item, closeModal }: { item: SoundEvent, closeModal: () => void; }) {
     const ownedGuilds = useMemo(() => {
@@ -71,6 +74,8 @@ export function CloneSoundModal({ item, closeModal }: { item: SoundEvent, closeM
     const [soundEmoji, setSoundEmoji] = useState<any | undefined>(undefined);
     const [loadingButton, setLoadingButton] = useState<boolean>(false);
     const [show, setShow] = useState(false);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+    const emojiRef = useRef<HTMLDivElement>(null);
 
     const isEmojiValid = soundEmoji?.guildId ? soundEmoji.guildId === selectedGuild?.id : true;
 
@@ -80,25 +85,19 @@ export function CloneSoundModal({ item, closeModal }: { item: SoundEvent, closeM
     };
     const getStyle = key => key === "selected" ? styles.selected : styles.nonselected;
 
-    function onSelectEmoji(emoji) {
+    function onSelectEmoji({ emoji }: { emoji: Emoji; }) {
         setShow(false);
         setSoundEmoji(emoji);
     }
 
     return <>
-        <ModalHeader>
-            <Flex style={{ width: "100%", justifyContent: "center" }}>
-                <Text variant="heading-lg/semibold" style={{ flexGrow: 1 }}>Clone Sound</Text>
-                <ModalCloseButton onClick={closeModal} />
-            </Flex>
-        </ModalHeader>
-        <ModalContent>
-            <Forms.FormTitle className={Margins.top16}>Cloning Sound</Forms.FormTitle>
+        <div>
+            <Heading className={Margins.top16}>Cloning Sound</Heading>
             <CustomInput style={{ display: "flex", flexDirection: "row", gap: "10px", alignItems: "center" }} className={Margins.bottom16}>
                 <img src={getEmojiUrl(item.emoji)} width="24" height="24" />
                 <Text>{item.soundId}</Text>
             </CustomInput>
-            <Forms.FormTitle required={true} aria-required="true">Add to server:</Forms.FormTitle>
+            <Heading aria-required="true">Add to server:</Heading>
             <SearchableSelect
                 options={
                     ownedGuilds.map(guild => ({
@@ -108,13 +107,9 @@ export function CloneSoundModal({ item, closeModal }: { item: SoundEvent, closeM
                 }
 
                 placeholder="Select a server"
-                value={selectedGuild ? ({
-                    label: selectedGuild.name,
-                    value: selectedGuild,
-                    key: "selected"
-                }) : undefined}
+                value={selectedGuild ?? undefined}
 
-                onChange={v =>  setSelectedGuild(v)}
+                onChange={v => setSelectedGuild(v)}
                 closeOnSelect={true}
                 renderOptionPrefix={v => v ? (
                     v.value.icon ?
@@ -124,20 +119,32 @@ export function CloneSoundModal({ item, closeModal }: { item: SoundEvent, closeM
             />
             <Flex flexDirection="row" style={{ gap: "10px", justifyContent: "space-between" }} className={classes(Margins.top16, Margins.bottom16)}>
                 <div style={{ flex: 1 }}>
-                    <Forms.FormTitle required={true} aria-required="true">Sound Name</Forms.FormTitle>
+                    <Heading aria-required="true">Sound Name</Heading>
                     <TextInput value={soundName} onChange={v => setSoundName(v)} placeholder="Sound Name" />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <Forms.FormTitle>Related Emoji</Forms.FormTitle>
+                    <Heading>Related Emoji</Heading>
                     <Popout
                         position="bottom"
                         align="right"
                         animation={Popout.Animation.NONE}
                         shouldShow={show}
+                        targetElementRef={emojiRef}
                         onRequestClose={() => setShow(false)}
-                        renderPopout={() => <EmojiPicker pickerIntention={2} channel={{ getGuildId: () => selectedGuild?.id }} onSelectEmoji={onSelectEmoji} />}
+                        renderPopout={() => (
+                            <ErrorBoundary>
+                                <EmojiPicker
+                                    pickerIntention={EmojiIntention.SOUNDBOARD}
+                                    guildId={selectedGuild?.id}
+                                    channel={selectedGuild ? GuildChannelStore.getDefaultChannel(selectedGuild.id) : undefined}
+                                    onSelectEmoji={onSelectEmoji}
+                                    closePopout={() => setShow(false)}
+                                />
+                            </ErrorBoundary>
+                        )}
                     >
                         {() => (
+                            <div ref={emojiRef}>
                             <Clickable onClick={() => setShow(v => !v)}>
                                 <CustomInput style={{ display: "flex", flexDirection: "row", gap: "10px", alignItems: "center", cursor: "pointer" }}>
                                     {soundEmoji ?
@@ -152,53 +159,63 @@ export function CloneSoundModal({ item, closeModal }: { item: SoundEvent, closeM
                                     }
                                 </CustomInput>
                             </Clickable>
+                            </div>
                         )}
                     </Popout>
+                    {soundEmoji && <Button variant="none" size="small" onClick={() => setSoundEmoji(undefined)}>Remove emoji</Button>}
                 </div>
             </Flex>
-            {!isEmojiValid && <Forms.FormText style={{ color: "var(--text-danger)" }} className={Margins.bottom16}>You can't use that emoji in that server</Forms.FormText>}
-            <Button onClick={() => {
-                setLoadingButton(true);
-                fetch(`https://cdn.discordapp.com/soundboard-sounds/${item.soundId}`).then(function (response) {
-                    if (!response.body) {
-                        setLoadingButton(false);
-                        showToast("Error fetching the sound", Toasts.Type.FAILURE);
-                        return;
-                    };
-                    response.body.getReader().read().then(function(result) {
-                        if (!result.value) {
-                            setLoadingButton(false);
-                            showToast("Error reading the sound content", Toasts.Type.FAILURE);
-                            return;
-                        }
-                        return btoa(String.fromCharCode(...result.value));
-                    }).then(function (b64) {
-                        
-                        sounds.uploadSound({
-                            guildId: selectedGuild?.id,
-                            name: soundName,
-                            sound: `data:audio/ogg;base64,${b64}`,
-                            ...(soundEmoji.id ? {emojiId: soundEmoji.id} : {emojiName: soundEmoji.surrogates}),
-                            volume: 1
-                        }).then(() => {
-                            showToast(`Sound added to ${selectedGuild?.name}`, Toasts.Type.SUCCESS);
-                            closeModal();
-                        }).catch(() => {
-                            setLoadingButton(false);
-                            showToast("Error while adding sound", Toasts.Type.FAILURE);
-                        });
-                        
-                    });
-                }).catch(e => {
-                    setLoadingButton(false);
-                    showToast("Error fetching the sound", Toasts.Type.FAILURE);
+            {!isEmojiValid && <Text style={{ color: "var(--text-danger)" }} className={Margins.bottom16}>You can't use that emoji in that server</Text>}
+            {uploadError && <Text size="sm" role="alert" style={{ color: "var(--text-danger)", marginBottom: 12, overflowWrap: "anywhere" }}>{uploadError}</Text>}
+            <Button onClick={async () => {
+                if (!selectedGuild || !soundName?.trim() || !isEmojiValid) return;
+                setUploadError(null);
+                const name = soundName.trim();
+                if (name.length < 2 || name.length > 32) {
+                    setUploadError("Sound names must be between 2 and 32 characters.");
                     return;
-                })
+                }
+                setLoadingButton(true);
+                try {
+                    const response = await fetch(`https://cdn.discordapp.com/soundboard-sounds/${item.soundId}`);
+                    if (!response.ok) throw new Error(`Could not download the original sound (HTTP ${response.status}).`);
+                    const audio = await response.arrayBuffer();
+                    const header = new Uint8Array(audio, 0, Math.min(4, audio.byteLength));
+                    const isOgg = header[0] === 0x4f && header[1] === 0x67 && header[2] === 0x67 && header[3] === 0x53;
+                    const blob = new Blob([audio], { type: isOgg ? "audio/ogg" : "audio/mpeg" });
+                    const sound = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.onerror = () => reject(reader.error);
+                        reader.readAsDataURL(blob);
+                    });
+                    await RestAPI.post({
+                        url: `/guilds/${selectedGuild.id}/soundboard-sounds`,
+                        body: {
+                            name,
+                            sound,
+                            emoji_id: soundEmoji?.id ?? null,
+                            emoji_name: soundEmoji?.id ? null : soundEmoji?.surrogates ?? null,
+                            volume: 1
+                        }
+                    });
+                    showToast({ text: `Sound added to ${selectedGuild.name}`, variant: "success" });
+                    closeModal();
+                } catch (error) {
+                    const failure = error as { body?: { message?: string; errors?: unknown; code?: number; }; message?: string; status?: number; };
+                    const message = failure.body?.message ?? failure.message ?? "Unknown upload error";
+                    const details = failure.body?.errors ? ` ${JSON.stringify(failure.body.errors)}` : "";
+                    const code = failure.body?.code ?? failure.status;
+                    setUploadError(`${message}${code ? ` (${code})` : ""}${details}`);
+                    showToast({ text: `Could not clone sound: ${message}`, variant: "critical" });
+                } finally {
+                    setLoadingButton(false);
+                }
             }}
-                disabled={(!(selectedGuild && soundName && isEmojiValid)) || loadingButton}
-                size={Button.Sizes.MEDIUM}
+                disabled={(!(selectedGuild && soundName?.trim() && isEmojiValid)) || loadingButton}
+                size="medium"
                 style={{ width: "100%" }}
                 className={Margins.bottom16}>Add to Server</Button>
-        </ModalContent>
+        </div>
     </>;
 }

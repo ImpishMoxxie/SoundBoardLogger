@@ -16,32 +16,35 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import ErrorBoundary from "@components/ErrorBoundary";
+import { Flex } from "@components/Flex";
+import { Heading } from "@components/Heading";
 import { CopyIcon } from "@components/Icons";
+import { Text } from "@components/Text";
+import { cl, copyWithToast, downloadAudio, getEmojiUrl, playSound, SoundLogEntry, User, UserSummaryItem } from "@plugins/SoundBoardLogger/utils";
 import { openUserProfile } from "@utils/discord";
 import { Margins } from "@utils/margins";
-import { classes, copyWithToast } from "@utils/misc";
-import { ModalRoot, ModalContent, closeModal, openModal } from "@utils/modal";
-import { Clickable, Forms, Timestamp, Text } from "@webpack/common";
-import { Flex } from "@components/Flex";
-import { SoundLogEntry, User, playSound } from "../utils";
-import moment from "moment";
-import { AvatarStyles, UserSummaryItem, cl, downloadAudio, getEmojiUrl } from "../utils";
-import { DownloadIcon, PlayIcon, IconWithTooltip } from "./Icons";
+import { classes } from "@utils/misc";
+import { Clickable, closeModal, Modal, openModal, Timestamp } from "@webpack/common";
+
+import { DownloadIcon, IconWithTooltip, PlayIcon } from "./Icons";
 
 export function openUserModal(item, user, sounds) {
     const key = openModal(props =>
-        <ModalRoot {...props}>
-            <UserModal item={item} user={user} sounds={sounds} closeModal={() => closeModal(key)} />
-        </ModalRoot>
+        <Modal {...props} title="Sound history" size="lg">
+            <ErrorBoundary>
+                <UserModal item={item} user={user} sounds={sounds} closeModal={() => closeModal(key)} />
+            </ErrorBoundary>
+        </Modal>
     );
 }
 
 export default function UserModal({ item, user, sounds, closeModal }: { item: SoundLogEntry, user: User, sounds: SoundLogEntry[], closeModal: Function; }) {
-    const currentUser = item.users.find(({ id }) => id === user.id) ?? { id: '', plays: [0] };
-    const soundsDoneByCurrentUser = sounds.filter(sound => sound.users.some(itemUser => itemUser.id === user.id) && sound.soundId != item.soundId);
+    const currentUser = item.users.find(({ id }) => id === user.id) ?? { id: "", plays: [0] };
+    const soundsDoneByCurrentUser = sounds.filter(sound => sound.users.some(itemUser => itemUser.id === user.id) && sound.soundId !== item.soundId);
 
     return (
-        <ModalContent className={cl("user")}>
+        <div className={cl("user")}>
             <Clickable onClick={() => {
                 closeModal();
                 openUserProfile(user.id);
@@ -53,7 +56,7 @@ export default function UserModal({ item, user, sounds, closeModal }: { item: So
                         alt=""
                         style={{ cursor: "pointer" }}
                     />
-                    <Forms.FormTitle tag="h2" className={cl("user-name")} style={{ textTransform: "none", cursor: "pointer" }}>{user.username}</Forms.FormTitle>
+                    <Heading tag="h2" className={cl("user-name")} style={{ textTransform: "none", cursor: "pointer" }}>{user.username}</Heading>
                 </div>
             </Clickable>
             <Flex flexDirection="row" style={{ gap: "10px" }}>
@@ -63,13 +66,13 @@ export default function UserModal({ item, user, sounds, closeModal }: { item: So
                     alt=""
                 />
                 <Flex flexDirection="column" style={{ gap: "7px", height: "68px", justifyContent: "space-between" }}>
-                    <Text variant="text-md/bold" style={{ height: "20px" }}>{item.soundId}</Text>
-                    <Text variant="text-md/normal">Played {currentUser.plays.length} {currentUser.plays.length === 1 ? 'time' : 'times'}.</Text>
-                    <Text variant="text-md/normal">Last played: <Timestamp timestamp={new Date(currentUser.plays[currentUser.plays.length - 1])} /></Text>
+                    <Text size="md" weight="bold" style={{ height: "20px" }}>{item.soundId}</Text>
+                    <Text size="md" weight="normal">Played {currentUser.plays.length} {currentUser.plays.length === 1 ? "time" : "times"}.</Text>
+                    <Text size="md" weight="normal">Last played: <Timestamp timestamp={new Date(currentUser.plays[currentUser.plays.length - 1])} /></Text>
                 </Flex>
             </Flex>
-            <Text variant="heading-lg/semibold" tag="h2" className={classes(Margins.top16, Margins.bottom8)}>
-                {soundsDoneByCurrentUser.length ? 'Also played:' : ' '}
+            <Text size="lg" weight="semibold" tag="h2" className={classes(Margins.top16, Margins.bottom8)}>
+                {soundsDoneByCurrentUser.length ? "Also played:" : " "}
             </Text>
             <Flex style={{ justifyContent: "space-between" }}>
                 <UserSummaryItem
@@ -81,8 +84,8 @@ export default function UserModal({ item, user, sounds, closeModal }: { item: So
                     showDefaultAvatarsForNullUsers
                     showUserPopout
                     renderMoreUsers={() =>
-                        <div className={AvatarStyles.emptyUser}>
-                            <div className={AvatarStyles.moreUsers}>
+                        <div className={cl("avatar-placeholder")}>
+                            <div className={cl("avatar-overflow")}>
                                 ...
                             </div>
                         </div>
@@ -90,14 +93,14 @@ export default function UserModal({ item, user, sounds, closeModal }: { item: So
                     className={cl("user-sounds")}
                     renderUser={({ soundId, emoji }) => (
                         <Clickable
-                            className={AvatarStyles.clickableAvatar}
+                            className={cl("avatar-button")}
                             onClick={() => {
                                 closeModal();
                                 openUserModal(sounds.find(sound => sound.soundId === soundId), user, sounds);
                             }}
                         >
                             <img
-                                className={AvatarStyles.avatar}
+                                className={cl("avatar")}
                                 src={getEmojiUrl(emoji)}
                                 alt={soundId}
                                 title={soundId}
@@ -111,6 +114,6 @@ export default function UserModal({ item, user, sounds, closeModal }: { item: So
                     <IconWithTooltip text="Play Sound" icon={<PlayIcon />} onClick={() => playSound(item.soundId)} />
                 </div>
             </Flex>
-        </ModalContent>
+        </div>
     );
 }

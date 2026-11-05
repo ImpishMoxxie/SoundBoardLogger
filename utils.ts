@@ -17,13 +17,15 @@
 */
 
 import { classNameFactory } from "@api/Styles";
-import { proxyLazy } from "@utils/lazy";
-import { LazyComponent } from "@utils/react";
+import { copyToClipboard } from "@utils/clipboard";
 import { saveFile } from "@utils/web";
-import { findByCode, findByProps, findByPropsLazy } from "@webpack";
-import type { User } from "discord-types/general";
+import type { User } from "@vencord/discord-types";
+import { findByPropsLazy } from "@webpack";
+import { showToast, UserSummaryItem } from "@webpack/common";
 
-export { User };
+import settings from "./settings";
+
+export { User, UserSummaryItem };
 
 export interface SoundEvent {
     type: "VOICE_CHANNEL_EFFECT_SEND",
@@ -43,53 +45,50 @@ export interface SoundLogEntry extends SoundEvent {
 
 export const cl = classNameFactory("vc-soundlog-");
 
+const emojiUtils = findByPropsLazy("getURL", "getEmojiColors");
+
 export function getEmojiUrl(emoji) {
-    const { getURL } = proxyLazy(() => findByProps("getEmojiColors", "getURL"));
-    if (!emoji) return getURL('❓'); // If the sound doesn't have a related emoji
+    const { getURL } = emojiUtils;
+    if (!emoji) return getURL("❓"); // If the sound doesn't have a related emoji
     return emoji.id ? `https://cdn.discordapp.com/emojis/${emoji.id}.png?size=32` : getURL(emoji.name);
-};
+}
 
-const v1 = findByPropsLazy("amplitudeToPerceptual");
-const v2 = findByPropsLazy("getAmplitudinalSoundboardVolume");
-
-export const getSoundboardVolume = () => v1.amplitudeToPerceptual(v2.getAmplitudinalSoundboardVolume());
+export function getPreviewVolume(): number {
+    const volume = settings.store.PreviewVolume;
+    return Number.isFinite(volume) ? Math.max(0, Math.min(100, volume)) : 50;
+}
 
 export const playSound = id => {
-    let audio = new Audio(`https://cdn.discordapp.com/soundboard-sounds/${id}`);
-    audio.volume = getSoundboardVolume() / 100;
-    audio.play();
+    const audio = new Audio(`https://cdn.discordapp.com/soundboard-sounds/${id}`);
+    audio.volume = Math.max(0, Math.min(1, getPreviewVolume() / 100));
+    audio.play().catch(() => showToast({ text: "Could not play this sound", variant: "critical" }));
 };
 
-const saveFileModule = findByPropsLazy("saveFile");
-
 export async function downloadAudio(id: string): Promise<void> {
-    const filename = id + ".ogg";
-    const uri = `https://cdn.discordapp.com/soundboard-sounds/${id}`;
-    const data = await fetch(uri).then(e => e.arrayBuffer());
-
-
-    if (IS_DISCORD_DESKTOP) {
-        saveFileModule.saveFile(uri, filename);
-    } else {
-        saveFile(new File([data], filename, { type: "audio/ogg" }));
+    try {
+        const response = await fetch(`https://cdn.discordapp.com/soundboard-sounds/${id}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        saveFile(new File([await response.blob()], `${id}.ogg`, { type: "audio/ogg" }));
+    } catch {
+        showToast({ text: "Could not download this sound", variant: "critical" });
     }
 }
 
-let listeners: Function[] = [];
+let listeners: (() => void)[] = [];
 
-export function getListeners(): Function[] {
+export function getListeners(): (() => void)[] {
     return listeners;
 }
 
-export function addListener(fn): void {
+export function addListener(fn: () => void): void {
     listeners.push(fn);
 }
 
-export function removeListener(fn): void {
+export function removeListener(fn: () => void): void {
     listeners = listeners.filter(f => f !== fn);
 }
 
-// Taken from https://github.com/Vendicated/Vencord/blob/86e94343cca10b950f2dc8d18d496d6db9f3b728/src/components/PluginSettings/PluginModal.tsx#L45
-export const UserSummaryItem = LazyComponent(() => findByCode("defaultRenderUser", "showDefaultAvatarsForNullUsers"));
-export const AvatarStyles = findByPropsLazy("moreUsers", "emptyUser", "avatarContainer", "clickableAvatar");
-// a
+export async function copyWithToast(value: string, message: string) {
+    await copyToClipboard(value);
+    showToast({ text: message, variant: "success" });
+}

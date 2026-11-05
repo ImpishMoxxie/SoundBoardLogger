@@ -16,32 +16,32 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
+import { Button } from "@components/Button";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { Margins } from "@utils/margins";
-import { classes, copyWithToast } from "@utils/misc";
-import { openModal, ModalRoot, ModalContent, closeModal, ModalSize, ModalHeader, ModalCloseButton, ModalFooter } from "@utils/modal";
-import { UserUtils, Clickable, Tooltip, Forms, Button, Text, useState, useEffect, ContextMenuApi, Menu, FluxDispatcher } from "@webpack/common";
 import { Flex } from "@components/Flex";
-import { User } from "discord-types/general";
-import { clearLoggedSounds, getLoggedSounds } from "../store";
-import { SoundLogEntry, getSoundboardVolume, playSound } from "../utils";
-import { AvatarStyles, cl, getEmojiUrl, UserSummaryItem, downloadAudio, addListener, removeListener } from "../utils";
+import { Text } from "@components/Text";
+import { clearLoggedSounds, getLoggedSounds } from "@plugins/SoundBoardLogger/store";
+import { addListener, cl, copyWithToast, downloadAudio, getEmojiUrl, getPreviewVolume, playSound, removeListener, SoundLogEntry } from "@plugins/SoundBoardLogger/utils";
+import { User } from "@vencord/discord-types";
+import { Clickable, ContextMenuApi, FluxDispatcher, Menu, Modal, openModal, SoundboardStore, Tooltip, useEffect, UserUtils, useState } from "@webpack/common";
+import shiggy from "file://../assets/shiggy.png?base64";
+
+import { openCloneSoundModal } from "./CloneSoundModal";
 import { openMoreUsersModal } from "./MoreUsersModal";
 import { openUserModal } from "./UserModal";
-import { openCloneSoundModal } from "./CloneSoundModal";
 
 export async function openSoundBoardLog(): Promise<void> {
 
     const data = await getLoggedSounds();
-    const key = openModal(props => <ErrorBoundary>
-        <ModalRoot {...props} size={ModalSize.LARGE}>
-            <SoundBoardLog data={data} closeModal={() => closeModal(key)} />
-        </ModalRoot>
+    openModal(props => <ErrorBoundary>
+        <Modal {...props} title="Soundboard log" size="lg">
+            <SoundBoardLog data={data} />
+        </Modal>
     </ErrorBoundary>);
 
 }
 
-export default function SoundBoardLog({ data, closeModal }) {
+export default function SoundBoardLog({ data }: { data: SoundLogEntry[]; }) {
     const [sounds, setSounds] = useState(data);
     const [users, setUsers] = useState<User[]>([]);
     const update = async () => setSounds(await getLoggedSounds());
@@ -53,42 +53,48 @@ export default function SoundBoardLog({ data, closeModal }) {
         return () => removeListener(onSound);
     }, []);
 
-    const avatarsMax = 2;
-
-    // Update the users state when a new sound is played
     useEffect(() => {
+        let cancelled = false;
         (async () => {
-            /** Array of user IDs without a resolved user object */
-            const missing = sounds
-                .flatMap(sound => sound.users)                              // Get all users who have used any sound
-                .map(user => user.id)                                       // Get their ID ( user is {id: string, plays: number[]} )
-                .filter((id, index, self) => index === self.indexOf(id))    // Filter the array to remove non unique values
-                .filter(id => !users.map(user => user.id).includes(id));    // Filter the IDs to only get the ones not already in the users state
-            if (!missing.length) return;                                    // return if every user ID is already in users
-
-            for (const id of missing) {
-                const user = await UserUtils.getUser(id).catch(() => void 0);
-                if (user) setUsers(u => [...u, user]);
-            };
+            const ids = [...new Set(sounds.flatMap(sound => sound.users.map(user => user.id)))];
+            const resolved = await Promise.all(ids.map(id => UserUtils.getUser(id).catch(() => undefined)));
+            if (!cancelled) setUsers(resolved.filter((user): user is User => !!user));
         })();
+        return () => { cancelled = true; };
     }, [sounds]);
 
     function renderMoreUsers(item, itemUsers) {
         return (
             <Clickable
-                className={AvatarStyles.clickableAvatar}
+                className={cl("avatar-button")}
                 onClick={() => {
                     onClickShowMoreUsers(item, itemUsers);
                 }}
             >
-                <Tooltip text={`${itemUsers.length - avatarsMax} other people used this sound...`}>
+                <Tooltip text={`${itemUsers.length - 2} other people used this sound...`}>
                     {({ onMouseEnter, onMouseLeave }) => (
                         <div
-                            className={AvatarStyles.moreUsers}
+                            className={cl("avatar-overflow")}
+                            style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: 24,
+                                height: 24,
+                                flexShrink: 0,
+                                borderRadius: "50%",
+                                boxSizing: "border-box",
+                                background: "var(--background-modifier-accent, #35363c)",
+                                border: "1px solid var(--border-subtle, rgba(255, 255, 255, 0.1))",
+                                color: "var(--text-normal, #dbdee1)",
+                                fontSize: 11,
+                                fontWeight: 600,
+                                lineHeight: 1
+                            }}
                             onMouseEnter={onMouseEnter}
                             onMouseLeave={onMouseLeave}
                         >
-                            +{itemUsers.length - avatarsMax}
+                            +{itemUsers.length - 2}
                         </div>
                     )}
                 </Tooltip>
@@ -96,10 +102,9 @@ export default function SoundBoardLog({ data, closeModal }) {
         );
     }
 
-    /** This function is called when you click the "Show more users" button. */
     function onClickShowMoreUsers(item: SoundLogEntry, users: User[]): void {
         openMoreUsersModal(item, users, onClickUser);
-    };
+    }
 
     function onClickUser(item: SoundLogEntry, user: User) {
         openUserModal(item, user, sounds);
@@ -112,9 +117,9 @@ export default function SoundBoardLog({ data, closeModal }) {
                 navId="soundboardlogger-sound-menu"
                 onClose={() => FluxDispatcher.dispatch({ type: "CONTEXT_MENU_CLOSE" })}
             >
-                <Menu.MenuGroup label="Extra buttons">
+                <Menu.MenuGroup>
                     <Menu.MenuItem
-                        id={label('clone')}
+                        id={label("clone")}
                         label="Clone sound"
                         action={() => openCloneSoundModal(item)}
                     />
@@ -124,81 +129,78 @@ export default function SoundBoardLog({ data, closeModal }) {
     }
 
     return (
-        <>
-            <ModalHeader className={cl("modal-header")}>
-                <Text variant="heading-lg/semibold" style={{ flexGrow: 1 }}>SoundBoard log</Text>
-                <ModalCloseButton onClick={closeModal} />
-            </ModalHeader>
-            <ModalContent className={classes(cl("modal-content"), Margins.top8)}>
+        <div className={cl("log")}>
+            <div className={cl("summary")}>
+                <Text size="sm" weight="medium">{sounds.length} {sounds.length === 1 ? "sound" : "sounds"} collected</Text>
+                {sounds.length > 0 && <Text size="xs" className={cl("muted")}>Right-click a sound to clone it</Text>}
+            </div>
+            <div className={cl("modal-content")}>
                 {sounds.length ? sounds.map(item => {
                     const itemUsers = users.filter(user => item.users.map(u => u.id).includes(user.id));
 
+                    const name = SoundboardStore.getSoundById(item.soundId)?.name ?? `Sound ${item.soundId}`;
+                    const plays = item.users.reduce((total, user) => total + user.plays.length, 0);
+
                     return (
                         <div
+                            key={item.soundId}
                             className={cl("sound")}
-                            onContextMenu={(e) =>
+                            onContextMenu={e =>
                                 ContextMenuApi.openContextMenu(e, () => <SoundContextMenu item={item} />)
                             }
                         >
                             <Flex flexDirection="row" className={cl("sound-info")}>
-                                <img
-                                    src={getEmojiUrl(item.emoji)}
-                                    className={cl("sound-emoji")}
-                                />
-                                <Forms.FormText variant="text-xs/medium" className={cl("sound-id")}>{item.soundId}</Forms.FormText>
+                                <div className={cl("emoji-tile")}>
+                                    <img src={getEmojiUrl(item.emoji)} className={cl("sound-emoji")} alt="" />
+                                </div>
+                                <div className={cl("sound-details")}>
+                                    <Text size="sm" weight="semibold" className={cl("sound-name")} title={name}>{name}</Text>
+                                    <Text size="xs" className={cl("muted")}>{plays} {plays === 1 ? "play" : "plays"} · {item.users.length} {item.users.length === 1 ? "person" : "people"}</Text>
+                                    <Text size="xs" className={cl("sound-id")}>{item.soundId}</Text>
+                                </div>
                             </Flex>
-                            <UserSummaryItem
-                                users={itemUsers.slice(0, avatarsMax)}  // Trimmed array to the size of max
-                                count={item.users.length - 1}           // True size (counting users that aren't rendered) - 1
-                                guildId={undefined}
-                                renderIcon={false}
-                                max={avatarsMax}
-                                showDefaultAvatarsForNullUsers
-                                showUserPopout
-                                renderMoreUsers={() => renderMoreUsers(item, itemUsers)}
-                                className={cl("sound-users")}
-                                renderUser={(user: User) => (
+                            <div className={cl("sound-users")}>
+                                {itemUsers.slice(0, itemUsers.length > 3 ? 2 : 3).map(user => (
                                     <Clickable
-                                        className={AvatarStyles.clickableAvatar}
-                                        onClick={() => {
-                                            onClickUser(item, user);
-                                        }}
+                                        key={user.id}
+                                        className={cl("avatar-button")}
+                                        onClick={() => onClickUser(item, user)}
                                     >
                                         <img
-                                            className={AvatarStyles.avatar}
+                                            className={cl("avatar")}
                                             src={user.getAvatarURL(void 0, 80, true)}
                                             alt={user.username}
                                             title={user.username}
                                         />
                                     </Clickable>
-                                )}
-                            />
+                                ))}
+                                {itemUsers.length > 3 && renderMoreUsers(item, itemUsers)}
+                            </div>
                             <Flex flexDirection="row" className={cl("sound-buttons")}>
-                                <Button color={Button.Colors.PRIMARY} size={Button.Sizes.SMALL} onClick={() => downloadAudio(item.soundId)}>Download</Button>
-                                <Button color={Button.Colors.GREEN} size={Button.Sizes.SMALL} onClick={() => copyWithToast(item.soundId, "ID copied to clipboard!")}>Copy ID</Button>
-                                <Tooltip text={`Soundboard volume: ${Math.floor(getSoundboardVolume())}%`}>
+                                <Button variant="secondary" size="small" onClick={() => downloadAudio(item.soundId)}>Download</Button>
+                                <Button variant="secondary" size="small" onClick={() => copyWithToast(item.soundId, "ID copied to clipboard!")}>Copy ID</Button>
+                                <Tooltip text={`Preview volume: ${Math.floor(getPreviewVolume())}%`}>
                                     {({ onMouseEnter, onMouseLeave }) =>
-                                        <Button color={Button.Colors.BRAND} size={Button.Sizes.SMALL} onClick={() => playSound(item.soundId)} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>Play Sound</Button>
+                                        <Button variant="primary" size="small" onClick={() => playSound(item.soundId)} onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>▶ Play</Button>
                                     }
                                 </Tooltip>
                             </Flex>
                         </div>
                     );
                 }) :
-                    <div style={{ textAlign: "center" }} className={Margins.top16}>
-                        <img
-                            src="https://raw.githubusercontent.com/fres621/assets/main/shiggy.png"
-                            height="200px"
-                        />
-                        <Forms.FormText variant="text-sm/medium" style={{ color: "var(--text-muted)" }} className={Margins.bottom16}>No sounds logged yet. Join a voice chat to start logging!</Forms.FormText>
+                    <div className={cl("empty")}>
+                        <img src={`data:image/png;base64,${shiggy}`} alt="Shiggy relaxing" width={200} style={{ maxWidth: "100%", height: "auto", alignSelf: "center" }} />
+                        <Text size="lg" weight="semibold">Your sound collection starts here</Text>
+                        <Text size="sm" className={cl("muted")}>Join a voice channel. Sounds played there will appear here.</Text>
                     </div>
                 }
-            </ModalContent >
-            <ModalFooter className={cl("modal-footer")}>
-                <Button color={Button.Colors.RED} onClick={async () => { await clearLoggedSounds(); update(); }}>
+            </div >
+            {sounds.length > 0 && <div className={cl("modal-footer")}>
+                <Text size="xs" className={cl("muted")}>Click an avatar to view play history</Text>
+                <Button variant="dangerSecondary" size="small" disabled={!sounds.length} onClick={async () => { await clearLoggedSounds(); update(); }}>
                     Clear logs
                 </Button>
-            </ModalFooter>
-        </>
+            </div>}
+        </div>
     );
-};
+}

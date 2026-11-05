@@ -17,66 +17,27 @@
 */
 
 import { definePluginSettings } from "@api/Settings";
+import { Button } from "@components/Button";
 import { OptionType } from "@utils/types";
-import { Forms, TextInput, Button, useState } from "@webpack/common";
+
 import { openSoundBoardLog } from "./components/SoundBoardLog";
 
 const settings = definePluginSettings({
     SavedIds: {
-        description: "The amount of soundboard ids you want to save at a time (0 lets you save infinite)",
-        type: OptionType.COMPONENT,
-        component: ({ setValue, setError }) => {
-            const value = settings.store.SavedIds ?? 50;
-            const [state, setState] = useState(`${value}`);
-            const [shouldShowWarning, setShouldShowWarning] = useState(false);
-            const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-            function handleChange(newValue) {
-                const changed = Number(newValue);
-
-                if (Number.isNaN(changed) || changed % 1 != 0 || changed < 0) {
-                    setError(true);
-                    let errorMsg = "";
-                    errorMsg += Number.isNaN(changed) ? "The value is not a number.\n" : '';
-                    errorMsg += (changed % 1 != 0) ? "The value can't be a decimal number.\n" : '';
-                    errorMsg += (changed < 0) ? "The value can't be a negative number.\n" : '';
-                    setErrorMessage(errorMsg);
-                    return;
-                } else {
-                    setError(false);
-                    setErrorMessage(null);
-                }
-
-
-                if (changed < value) {
-                    setShouldShowWarning(true);
-                } else {
-                    setShouldShowWarning(false);
-                }
-                setState(newValue);
-                setValue(changed);
-            };
-
-
-            return (
-                <Forms.FormSection>
-                    <Forms.FormTitle>The amount of soundboard ids you want to save at a time (0 lets you save infinite)</Forms.FormTitle>
-                    <TextInput
-                        type="number"
-                        pattern="-?[0-9]+"
-                        value={state}
-                        onChange={handleChange}
-                        placeholder={"Enter a number"}
-                    />
-                    {shouldShowWarning && <Forms.FormText style={{ color: "var(--text-danger)" }}>Warning! Setting the number to a lower value will reset the log!</Forms.FormText>}
-                    {errorMessage && <Forms.FormText style={{ color: "var(--text-danger)" }}>{errorMessage}</Forms.FormText>}
-                </Forms.FormSection>
-            );
-        }
-
+        description: "Maximum number of different sounds to save (0 means unlimited)",
+        type: OptionType.NUMBER,
+        default: 50,
+        isValid: value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    },
+    PreviewVolume: {
+        description: "Volume for sounds previewed in the logger",
+        type: OptionType.SLIDER,
+        markers: [0, 25, 50, 75, 100],
+        default: 50,
+        stickToMarkers: false
     },
     IconLocation: {
-        description: "choose where to show the SoundBoard Log icon (requires restart)",
+        description: "Where to show the SoundBoard Log icon",
         type: OptionType.SELECT,
         options: [
             { label: "Toolbar", value: "toolbar", default: true },
@@ -86,9 +47,8 @@ const settings = definePluginSettings({
     },
     OpenLogs: {
         type: OptionType.COMPONENT,
-        description: "show the logs",
-        component: () =>
-            <Button color={Button.Colors.LINK} size={Button.Sizes.SMALL} onClick={openSoundBoardLog}>Open Logs</Button>
+        description: "Open the sound logs",
+        component: () => <Button variant="link" size="small" onClick={openSoundBoardLog}>Open Logs</Button>
     }
 });
 

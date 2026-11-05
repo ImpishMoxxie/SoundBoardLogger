@@ -1,46 +1,136 @@
-.vc-soundlog-more-user,
-.vc-soundlog-sound {
-    box-sizing: border-box;
-    position: relative;
-    background: var(--background-secondary);
-    border-radius: var(--radius-sm);
-    height: 40px;
-    width: 100%;
+.vc-soundlog-log {
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.vc-soundlog-summary,
+.vc-soundlog-modal-footer {
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    font-weight: 600;
-    border: 1px solid transparent;
-    overflow: hidden;
-    text-align: center;
-    margin-top: 10px;
-    padding-left: 10px;
-    padding-right: 10px
+    gap: 12px;
 }
 
-.vc-soundlog-more-user-profile,
-.vc-soundlog-sound-info {
+.vc-soundlog-muted {
+    color: var(--text-muted);
+}
+
+.vc-soundlog-modal-content {
+    display: flex;
+    flex-direction: column;
     gap: 10px;
-    align-content: center;
+}
+
+.vc-soundlog-sound {
+    display: flex;
     align-items: center;
-    flex: 2;
+    gap: 16px;
+    padding: 14px;
+    border: 1px solid var(--border-subtle, rgb(255 255 255 / 6%));
+    border-radius: 12px;
+    background: var(--background-secondary, rgb(0 0 0 / 12%));
+    transition: border-color 150ms ease;
 }
 
-.vc-soundlog-sound-buttons {
-    gap: 10px;
-    align-content: center;
+.vc-soundlog-sound:hover {
+    border-color: var(--brand-500);
+}
+
+.vc-soundlog-sound-info {
+    align-items: center;
+    gap: 12px;
     flex: 1;
+    min-width: 0;
+}
+
+.vc-soundlog-emoji-tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    background: var(--background-tertiary, rgb(0 0 0 / 15%));
+}
+
+.vc-soundlog-sound-emoji {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+}
+
+.vc-soundlog-sound-details {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.vc-soundlog-sound-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vc-soundlog-sound-id {
+    font-family: var(--font-code);
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+    font-size: 10px;
 }
 
 .vc-soundlog-sound-users {
-    flex: 2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
 }
 
+.vc-soundlog-sound-buttons {
+    flex-shrink: 0;
+    gap: 6px;
+}
 
-.vc-soundlog-sound-emoji {
-    width: 24px;
-    height: 24px;
+.vc-soundlog-modal-footer {
+    border-top: 1px solid var(--border-subtle, rgb(255 255 255 / 6%));
+    padding-top: 16px;
+}
+
+.vc-soundlog-empty {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 48px 16px;
+    text-align: center;
+}
+
+.vc-soundlog-more-user {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    margin-top: 8px;
+    border-radius: 8px;
+    background: var(--background-secondary);
+}
+
+.vc-soundlog-more-user-profile {
+    align-items: center;
+    gap: 10px;
+}
+
+@media (width <= 650px) {
+    .vc-soundlog-sound,
+    .vc-soundlog-summary {
+        flex-wrap: wrap;
+    }
+
+    .vc-soundlog-sound-buttons {
+        width: 100%;
+        justify-content: flex-end;
+    }
 }
 
 .vc-soundlog-more,
@@ -122,4 +212,43 @@
     font-size: 100%;
     box-sizing: border-box;
     height: 40px;
+}
+
+.vc-soundlog-avatar-button,
+.vc-soundlog-avatar-placeholder,
+.vc-soundlog-avatar-overflow {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+}
+
+.vc-soundlog-avatar-button {
+    cursor: pointer;
+}
+
+.vc-soundlog-avatar {
+    display: block;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.vc-soundlog-avatar-overflow {
+    box-sizing: border-box;
+    background: var(--background-modifier-accent, #35363c);
+    border: 1px solid var(--border-subtle, rgb(255 255 255 / 10%));
+    color: var(--text-normal, #dbdee1);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.vc-soundlog-avatar-button:hover .vc-soundlog-avatar-overflow {
+    background: var(--brand-500, #5865f2);
+    color: white;
 }

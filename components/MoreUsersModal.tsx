@@ -16,19 +16,19 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { ModalContent, ModalRoot, closeModal, openModal } from "@utils/modal";
-import { Forms, Clickable } from "@webpack/common";
-import { Flex } from "@components/Flex";
-import { cl, getEmojiUrl } from "../utils";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { SoundLogEntry, User } from "../utils";
+import { Flex } from "@components/Flex";
+import { Heading } from "@components/Heading";
+import { Text } from "@components/Text";
+import { cl, getEmojiUrl, SoundLogEntry, User } from "@plugins/SoundBoardLogger/utils";
+import { Clickable, closeModal, Modal, openModal } from "@webpack/common";
 
 export function openMoreUsersModal(item: SoundLogEntry, users: User[], onClickUser: Function) {
     const key = openModal(props => (
         <ErrorBoundary>
-            <ModalRoot {...props}>
+            <Modal {...props} title="Sound players" size="lg">
                 <MoreUsersModal item={item} users={users} onClickUser={onClickUser} closeModal={() => closeModal(key)} />
-            </ModalRoot>
+            </Modal>
         </ErrorBoundary>
     ));
 }
@@ -36,20 +36,20 @@ export function openMoreUsersModal(item: SoundLogEntry, users: User[], onClickUs
 
 export default function MoreUsersModal({ item, users, onClickUser, closeModal }: { item: SoundLogEntry, users: User[], onClickUser: Function, closeModal: Function; }) {
     return (
-        <ModalContent className={cl("more")}>
+        <div className={cl("more")}>
             <div className={cl("more-header")}>
                 <img
                     className={cl("more-emoji")}
                     src={getEmojiUrl(item.emoji)}
                     alt=""
                 />
-                <Forms.FormTitle tag="h2" className={cl("more-soundId")}>{item.soundId}</Forms.FormTitle>
+                <Heading tag="h2" className={cl("more-soundId")}>{item.soundId}</Heading>
             </div>
             <div className={cl("more-users")}>
                 {users.map(user => {
-                    const currentUser = item.users.find(({ id }) => id === user.id) ?? { id: '', plays: [0] };
+                    const currentUser = item.users.find(({ id }) => id === user.id) ?? { id: "", plays: [0] };
                     return (
-                        <Clickable onClick={() => {
+                        <Clickable key={user.id} onClick={() => {
                             closeModal();
                             onClickUser(item, user);
                         }}>
@@ -61,14 +61,14 @@ export default function MoreUsersModal({ item, users, onClickUser, closeModal }:
                                         alt=""
                                         style={{ cursor: "pointer" }}
                                     />
-                                    <Forms.FormText variant="text-xs/medium" style={{ cursor: "pointer" }}>{user.username}</Forms.FormText>
+                                    <Text size="xs" weight="medium" style={{ cursor: "pointer" }}>{user.username}</Text>
                                 </Flex>
-                                <Forms.FormText variant="text-xs/medium" style={{ cursor: "pointer" }}>Played {currentUser.plays.length} {currentUser.plays.length === 1 ? 'time' : 'times'}</Forms.FormText>
+                                <Text size="xs" weight="medium" style={{ cursor: "pointer" }}>Played {currentUser.plays.length} {currentUser.plays.length === 1 ? "time" : "times"}</Text>
                             </div>
                         </Clickable>
                     );
                 })}
             </div>
-        </ModalContent>
+        </div>
     );
 }
