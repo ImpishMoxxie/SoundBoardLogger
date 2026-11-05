@@ -134,7 +134,21 @@ export default function SoundBoardLog({ data }: { data: SoundLogEntry[]; }) {
                 <Text size="sm" weight="medium">{sounds.length} {sounds.length === 1 ? "sound" : "sounds"} collected</Text>
                 {sounds.length > 0 && <Text size="xs" className={cl("muted")}>Right-click a sound to clone it</Text>}
             </div>
-            <div className={cl("modal-content")}>
+            <div
+                className={cl("modal-content")}
+                role="region"
+                aria-label="Logged sounds"
+                tabIndex={0}
+                style={{
+                    maxHeight: "max(120px, calc(100dvh - 300px))",
+                    minHeight: 0,
+                    overflowY: "auto",
+                    overscrollBehavior: "contain",
+                    scrollbarWidth: "thin",
+                    scrollbarGutter: "stable",
+                    paddingInlineEnd: 4
+                }}
+            >
                 {sounds.length ? sounds.map(item => {
                     const itemUsers = users.filter(user => item.users.map(u => u.id).includes(user.id));
 
@@ -145,6 +159,7 @@ export default function SoundBoardLog({ data }: { data: SoundLogEntry[]; }) {
                         <div
                             key={item.soundId}
                             className={cl("sound")}
+                            style={{ flexShrink: 0 }}
                             onContextMenu={e =>
                                 ContextMenuApi.openContextMenu(e, () => <SoundContextMenu item={item} />)
                             }
